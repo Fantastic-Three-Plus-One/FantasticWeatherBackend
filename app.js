@@ -1,10 +1,15 @@
 require('dotenv').config()
 
+//var dotenv = require('dotenv');
+//dotenv.load();
+
 const express = require('express')
 const path = require('path')
 const bodyParser = require('body-parser')
 const cookieParser = require('cookie-parser')
 const session = require('express-session')
+
+
 
 const idealWeather = require('./routes/ideal.js')
 const locations = require('./routes/locations.js')
@@ -20,11 +25,6 @@ const passport = require('./passport')
 
 app.use(bodyParser.json())
 app.use(bodyParser.urlencoded({extended: false}))
-
-
-
-
-
 
 
 
