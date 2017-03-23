@@ -1,0 +1,36 @@
+#!/usr/bin/env node
+
+var pg = require('pg');
+var mailgun  = require('mailgun')(
+  process.env.MAILGUN_USERNAME,
+  process.env.MAILGUN_PASSWORD
+);
+
+pg.connect(process.env.DATABASE_URL, function(err, client, done) {
+  var handleError = function(err) {
+    if(!err) return false;
+    done(client);
+    next(err);
+    return true;
+  };
+
+  client.query('SELECT * FROM #TABLE#', function(err, result) {
+    if(handleError(err, client, done)) return;
+
+    if (condition) {
+      mailgun.send({
+          to: 'my@email.com',
+          from: 'app@email.com',
+          subject: 'The weather on your trail is awesome!',
+          text: 'Go hiking at Whatever Trail'
+        }, function(err, json) {
+          if (err) {
+            console.error(err);
+          }
+
+          done();
+          pg.end();
+      });
+    }
+  });
+});
