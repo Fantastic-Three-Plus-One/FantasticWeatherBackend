@@ -1,0 +1,86 @@
+#!/usr/bin/env node
+const axios = require('axios')
+const knex = require('../db/knex')
+const myKey = 'fd59c08b71d9a82c1248b5012aca9c44'
+// var heroku =
+var server = 'http://localhost:8000'
+// var server = 'https://fantastic-weather.herokuapp.com'
+
+knex('location').select()
+.then( result => {
+  var allRequests =[]
+  for (let i = 0; i < result.length; i++) {
+    var myLatitude = result[i].latitude
+    var myLongitude = result[i].longitude
+
+    var request = axios({
+      method: 'GET',
+      url: "https://api.darksky.net/forecast/" + myKey + "/" + myLatitude + "," + myLongitude + "?exclude=minutely,hourly,alerts,flags",
+      dataType : "jsonp"
+    })
+    .then( pJSON => {
+      var myLocationID = result[i].id
+      var maxTemp = pJSON.data['daily']['data'][0]['apparentTemperatureMax']
+      var precipChance = pJSON.data['daily']['data'][0]['precipProbability']
+      var windMax = pJSON.data['daily']['data'][0]['windSpeed']
+      var stats = {
+        locationID: myLocationID,
+        temperature: maxTemp,
+        rain: precipChance,
+        wind: windMax
+      }
+      return stats
+    })
+    .then( data => {
+      return knex('ideal').select()
+      .then( result => {
+        var allRequests2 = []
+        for (let j = 0; j < result.length; j++) {
+          var percipInt = parseFloat(result[j].percip_max)
+          if (result[j].location_id == data.locationID) {
+
+            var tempMinGood = result[j].temp_min <= data.temperature
+            if (result[j].temp_min == null) { tempMinGood = true}
+            var tempMaxGood = data.temperature <= result[j].temp_max
+            if (result[j].temp_max == null) { tempMaxGood = true}
+            var windMaxGood = result[j].wind_max >= data.wind
+            if (result[j].wind_max == null) { windMax = true}
+            var percipMaxGood = percipInt >= data.rain
+            if (percipInt == null) { percipMaxGood = true}
+
+            if (result[j].temp_min == null && result[j].temp_max == null && result[j].wind_max == null && percipInt == null) { tempMinGood = false }
+
+            if (tempMinGood && tempMaxGood && windMaxGood && percipMaxGood) {
+              var request2 = knex('username').where('id',result[j].username_id).select('email')
+              .then( email => {
+                return knex('location').where('id',result[j].location_id).select('name')
+                .then( location => {
+                  var mail = {
+                    to: email[0].email,
+                    text: `Weather is looking great for a hike at ${location[0].name}!`
+                  }
+                  console.log(mail);
+                  return axios.post( `${server}/mailgun`, mail )
+                  .then( result => {
+                    console.log('success!')
+                  })
+                })
+              })
+              allRequests2.push(request2)
+            }
+          }
+        }
+        return Promise.all(allRequests2)
+      })
+    })
+    allRequests.push(request)
+  }
+  return Promise.all(allRequests)
+})
+.then( result => {
+  console.log('exiting...');
+  process.exit(0)
+})
+.catch( result => {
+  process.exit(1)
+})
